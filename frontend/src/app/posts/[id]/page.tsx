@@ -1,0 +1,182 @@
+"use client";
+
+import { useState, useEffect, use } from "react";
+import { useRouter } from "next/navigation";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
+import { Spinner } from "@/components/ui/Spinner";
+import { PostEditor } from "@/components/posts/PostEditor";
+import { PostPreview } from "@/components/posts/PostPreview";
+import { PostVersionHistory } from "@/components/posts/PostVersionHistory";
+import { PostStatusBadge } from "@/components/posts/PostStatusBadge";
+import { AgentWorkflow } from "@/components/agent/AgentWorkflow";
+import { AgentStreamLog } from "@/components/agent/AgentStreamLog";
+import { ApprovalPanel } from "@/components/agent/ApprovalPanel";
+import { usePost } from "@/hooks/usePosts";
+import { useUpdatePost } from "@/hooks/usePosts";
+import { useSSE } from "@/hooks/useSSE";
+import { resumeAgent } from "@/lib/api";
+import { useToast } from "@/components/ui/Toast";
+import { PILLAR_COLORS } from "@/lib/constants";
+import type { Draft } from "@/lib/types";
+
+export default function PostDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const router = useRouter();
+  const { toast } = useToast();
+  const { data: post, isLoading, refetch } = usePost(id);
+  const updatePost = useUpdatePost();
+
+  const [selectedDraft, setSelectedDraft] = useState<Draft | null>(null);
+  const [resuming, setResuming] = useState(false);
+
+  const {
+    events,
+    currentNode,
+    isInterrupted,
+    interruptData,
+    isComplete,
+    error: sseError,
+  } = useSSE({
+    threadId: post?.thread_id || null,
+  });
+
+  const completedStages = events
+    .filter((e) => e.event === "node_complete")
+    .map((e) => (e.data as Record<string, string>).node || (e.data as Record<string, string>).stage);
+
+  useEffect(() => {
+    if (isComplete) refetch();
+  }, [isComplete, refetch]);
+
+  const displayContent = selectedDraft?.content || post?.final_content || post?.drafts?.[0]?.content || "";
+  const displayHashtags = selectedDraft?.hashtags?.split(",").map((h) => h.trim()) || [];
+
+  const handleApprove = async () => {
+    if (!post?.thread_id) return;
+    setResuming(true);
+    try {
+      await resumeAgent(post.thread_id, { status: "approved" });
+      toast("Post approved!", "success");
+      refetch();
+    } catch {
+      toast("Failed to approve", "error");
+    } finally {
+      setResuming(false);
+    }
+  };
+
+  const handleRequestEdit = async (feedback: string) => {
+    if (!post?.thread_id) return;
+    setResuming(true);
+    try {
+      await resumeAgent(post.thread_id, { status: "edit_requested", feedback });
+      toast("Edit requested, agent is revising...", "info");
+      refetch();
+    } catch {
+      toast("Failed to submit feedback", "error");
+    } finally {
+      setResuming(false);
+    }
+  };
+
+  const handleSaveContent = async (content: string) => {
+    if (!post) return;
+    await updatePost.mutateAsync({ id: post.id, data: { final_content: content } });
+    toast("Content saved", "success");
+  };
+
+  if (isLoading) {
+    return <div className="flex justify-center py-20"><Spinner size="lg" /></div>;
+  }
+
+  if (!post) {
+    return <p className="text-center text-gray-500 py-20">Post not found.</p>;
+  }
+
+  return (
+    <div className="grid grid-cols-12 gap-6">
+      {/* Left column: Editor */}
+      <div className="col-span-5 space-y-4">
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-semibold truncate">{post.title}</h2>
+          <PostStatusBadge status={post.status} />
+        </div>
+        <div className="flex gap-2">
+          <Badge className={PILLAR_COLORS[post.content_pillar]}>{post.content_pillar.replace("_", " ")}</Badge>
+          <Badge className="bg-gray-100 text-gray-600">{post.post_format.replace("_", " ")}</Badge>
+        </div>
+
+        <PostEditor
+          content={displayContent}
+          onSave={handleSaveContent}
+          readOnly={post.status === "drafting"}
+        />
+
+        {post.drafts && post.drafts.length > 0 && (
+          <Card>
+            <PostVersionHistory
+              drafts={post.drafts}
+              selectedId={selectedDraft?.id}
+              onSelect={setSelectedDraft}
+            />
+          </Card>
+        )}
+      </div>
+
+      {/* Middle column: Preview */}
+      <div className="col-span-4">
+        <h3 className="text-sm font-medium text-gray-500 mb-3">LinkedIn Preview</h3>
+        <PostPreview
+          content={displayContent}
+          hashtags={displayHashtags}
+          imageUrl={interruptData?.image_url as string}
+        />
+      </div>
+
+      {/* Right column: Workflow */}
+      <div className="col-span-3 space-y-4">
+        {post.thread_id && (
+          <>
+            <Card>
+              <AgentWorkflow currentStage={currentNode} completedStages={completedStages} />
+            </Card>
+            <Card>
+              <AgentStreamLog events={events} />
+            </Card>
+          </>
+        )}
+
+        {sseError && (
+          <Card className="border-red-200 bg-red-50">
+            <p className="text-sm text-red-700">{sseError}</p>
+          </Card>
+        )}
+
+        {isInterrupted && (
+          <ApprovalPanel
+            onApprove={handleApprove}
+            onRequestEdit={handleRequestEdit}
+            isLoading={resuming}
+          />
+        )}
+
+        {isComplete && (
+          <Card className="border-green-200 bg-green-50">
+            <p className="text-sm text-green-800 font-medium">Post approved and finalized.</p>
+            <Button variant="ghost" size="sm" className="mt-2" onClick={() => router.push("/posts")}>
+              Back to Posts
+            </Button>
+          </Card>
+        )}
+
+        {!post.thread_id && post.status === "idea" && (
+          <Card>
+            <p className="text-sm text-gray-500">This post hasn&apos;t been processed by the agent yet. Go to Create Post to generate content.</p>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+}
