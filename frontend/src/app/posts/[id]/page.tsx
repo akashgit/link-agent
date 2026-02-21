@@ -325,7 +325,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
         <PostEditor
           content={displayContent}
           onSave={handleSaveContent}
-          readOnly={post.status === "drafting"}
+          readOnly={!displayContent}
         />
         {(isInterrupted || post.status === "in_review") && userEditedContent !== null && (
           <p className="text-xs text-blue-600">
