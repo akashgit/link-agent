@@ -18,7 +18,14 @@ import { usePost } from "@/hooks/usePosts";
 import { useUpdatePost } from "@/hooks/usePosts";
 import { useSSE } from "@/hooks/useSSE";
 import { useQuery } from "@tanstack/react-query";
-import { resumeAgent, fetchPostMedia, deletePost } from "@/lib/api";
+import {
+  resumeAgent,
+  fetchPostMedia,
+  deletePost,
+  pushToTypefully,
+  scheduleOnTypefully,
+  getTypefullyStatus,
+} from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { PILLAR_COLORS } from "@/lib/constants";
 import type { Draft, MediaAsset } from "@/lib/types";
@@ -32,6 +39,12 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
 
   const [selectedDraft, setSelectedDraft] = useState<Draft | null>(null);
   const [resuming, setResuming] = useState(false);
+
+  // Typefully state
+  const [typefullyLoading, setTypefullyLoading] = useState(false);
+  const [typefullyStatus, setTypefullyStatus] = useState<string | null>(null);
+  const [scheduleDate, setScheduleDate] = useState("");
+  const [showScheduler, setShowScheduler] = useState(false);
 
   const { data: mediaAssets = [] } = useQuery({
     queryKey: ["post-media", id],
@@ -53,8 +66,19 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
     .filter((e) => e.event === "node_complete")
     .map((e) => (e.data as Record<string, string>).node || (e.data as Record<string, string>).stage);
 
-  // Extract image URL from node_complete events for generate_image
+  // Extract image URL from node_complete events (generate_image or optimize)
   const generatedImageUrl = useMemo(() => {
+    // Check optimize node first (may override with retrieved image)
+    const optimizeEvent = events.find(
+      (e) =>
+        e.event === "node_complete" &&
+        (e.data as Record<string, string>).node === "optimize" &&
+        (e.data as Record<string, string>).image_url,
+    );
+    if (optimizeEvent) {
+      return (optimizeEvent.data as Record<string, string>).image_url;
+    }
+    // Fall back to generate_image node
     const imageEvent = events.find(
       (e) =>
         e.event === "node_complete" &&
@@ -63,6 +87,20 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
     );
     if (imageEvent) {
       return (imageEvent.data as Record<string, string>).image_url;
+    }
+    return undefined;
+  }, [events]);
+
+  // Extract draft content from SSE events as soon as draft node completes
+  const liveDraftContent = useMemo(() => {
+    const draftEvent = [...events].reverse().find(
+      (e) =>
+        e.event === "node_complete" &&
+        (e.data as Record<string, string>).node === "draft" &&
+        (e.data as Record<string, string>).draft_content,
+    );
+    if (draftEvent) {
+      return (draftEvent.data as Record<string, string>).draft_content;
     }
     return undefined;
   }, [events]);
@@ -76,10 +114,13 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
   const interruptContent = interruptData?.proofread_content as string | undefined;
   const interruptHashtags = interruptData?.suggested_hashtags as string[] | undefined;
   const interruptImageUrl = interruptData?.image_url as string | undefined;
+  const interruptCharCount = interruptData?.linkedin_char_count as number | undefined;
+  const interruptWarnings = interruptData?.linkedin_warnings as string[] | undefined;
 
   const displayContent =
     selectedDraft?.content ||
     interruptContent ||
+    liveDraftContent ||
     post?.final_content ||
     post?.drafts?.[0]?.content ||
     "";
@@ -91,7 +132,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
 
   // Use interrupt image URL, SSE event URL, or fall back to first image in media list
   const mediaImageUrl = useMemo(() => {
-    const imageAsset = mediaAssets.find((a) => a.content_type.startsWith("image/"));
+    const imageAsset = mediaAssets.find((a: MediaAsset) => a.content_type.startsWith("image/"));
     if (imageAsset) {
       return `/api/uploads/file/${imageAsset.file_path.split("/").pop()}`;
     }
@@ -144,6 +185,49 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
       router.push("/posts");
     } catch {
       toast("Failed to delete post", "error");
+    }
+  };
+
+  const handlePushToTypefully = async () => {
+    if (!post) return;
+    setTypefullyLoading(true);
+    try {
+      await pushToTypefully(post.id);
+      toast("Draft created in Typefully", "success");
+      refetch();
+    } catch {
+      toast("Failed to push to Typefully", "error");
+    } finally {
+      setTypefullyLoading(false);
+    }
+  };
+
+  const handleScheduleTypefully = async () => {
+    if (!post || !scheduleDate) return;
+    setTypefullyLoading(true);
+    try {
+      const publishAt = new Date(scheduleDate).toISOString();
+      await scheduleOnTypefully(post.id, publishAt);
+      toast("Post scheduled in Typefully", "success");
+      setShowScheduler(false);
+      refetch();
+    } catch {
+      toast("Failed to schedule", "error");
+    } finally {
+      setTypefullyLoading(false);
+    }
+  };
+
+  const handleRefreshTypefullyStatus = async () => {
+    if (!post) return;
+    setTypefullyLoading(true);
+    try {
+      const result = await getTypefullyStatus(post.id);
+      setTypefullyStatus(result.status);
+    } catch {
+      toast("Failed to fetch Typefully status", "error");
+    } finally {
+      setTypefullyLoading(false);
     }
   };
 
@@ -214,7 +298,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
         {post.thread_id && (
           <>
             <Card>
-              <AgentWorkflow currentStage={currentNode} completedStages={completedStages} />
+              <AgentWorkflow currentStage={currentNode} completedStages={completedStages} events={events} />
             </Card>
             <Card>
               <AgentStreamLog events={events} />
@@ -233,6 +317,8 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
             onApprove={handleApprove}
             onRequestEdit={handleRequestEdit}
             isLoading={resuming}
+            charCount={interruptCharCount}
+            warnings={interruptWarnings}
           />
         )}
 
@@ -242,6 +328,120 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
             <Button variant="ghost" size="sm" className="mt-2" onClick={() => router.push("/posts")}>
               Back to Posts
             </Button>
+          </Card>
+        )}
+
+        {/* Typefully publish section */}
+        {post.status === "approved" && (
+          <Card>
+            <h4 className="font-semibold text-sm mb-3">Publish to LinkedIn</h4>
+
+            {!post.typefully_draft_id ? (
+              <div className="space-y-3">
+                <Button
+                  size="sm"
+                  onClick={handlePushToTypefully}
+                  loading={typefullyLoading}
+                  className="w-full"
+                >
+                  Push to Typefully
+                </Button>
+
+                <div>
+                  {!showScheduler ? (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => setShowScheduler(true)}
+                      className="w-full"
+                    >
+                      Schedule
+                    </Button>
+                  ) : (
+                    <div className="space-y-2">
+                      <input
+                        type="datetime-local"
+                        value={scheduleDate}
+                        onChange={(e) => setScheduleDate(e.target.value)}
+                        className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          onClick={handleScheduleTypefully}
+                          disabled={!scheduleDate}
+                          loading={typefullyLoading}
+                        >
+                          Confirm
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setShowScheduler(false)}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500">Typefully Draft</span>
+                  <Badge className="bg-blue-100 text-blue-700">
+                    {typefullyStatus || "draft"}
+                  </Badge>
+                </div>
+
+                {!showScheduler ? (
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => setShowScheduler(true)}
+                    >
+                      Schedule
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={handleRefreshTypefullyStatus}
+                      loading={typefullyLoading}
+                    >
+                      Refresh
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <input
+                      type="datetime-local"
+                      value={scheduleDate}
+                      onChange={(e) => setScheduleDate(e.target.value)}
+                      className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={handleScheduleTypefully}
+                        disabled={!scheduleDate}
+                        loading={typefullyLoading}
+                      >
+                        Confirm
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setShowScheduler(false)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </Card>
         )}
 

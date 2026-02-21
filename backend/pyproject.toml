@@ -15,12 +15,15 @@ dependencies = [
     "langgraph-checkpoint-postgres>=2.0.0",
     "psycopg[binary]>=3.2.0",
     "google-genai>=1.0.0",
+    "openai>=1.0.0",
     "httpx>=0.28.0",
     "python-multipart>=0.0.12",
     "pypdf>=5.0.0",
     "python-pptx>=1.0.0",
     "python-dotenv>=1.0.0",
     "sse-starlette>=2.1.0",
+    "grapheme>=0.6.0",
+    "tavily-python>=0.7.0",
 ]
 
 [project.optional-dependencies]

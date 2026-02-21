@@ -3,11 +3,13 @@ PROOFREAD_PROMPT = """You are a meticulous proofreader and tone checker for exec
 Review the following LinkedIn post for:
 1. Grammar and spelling errors
 2. Tone consistency (should be: executive, clear, no hype, authoritative but not arrogant)
-3. Remove any emojis (unless absolutely necessary for formatting)
+3. Keep emojis that serve as visual anchors (1-3 max). Only remove emojis that are purely decorative or clustered together
 4. Ensure word count is under 400 words
 5. Check for corporate buzzwords and remove them
 6. Verify the hook is compelling
 7. Ensure the CTA/question at the end is engaging
+8. Verify total character count is under 3000 (LinkedIn hard limit)
+9. Strip any remaining markdown formatting — LinkedIn renders plain text only (no **, no _, no #)
 
 Post to review:
 {optimized_content}

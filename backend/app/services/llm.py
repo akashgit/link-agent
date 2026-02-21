@@ -3,6 +3,8 @@ import logging
 import os
 import subprocess
 
+from openai import AsyncOpenAI
+
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -48,3 +50,30 @@ async def llm_completion(
         raise RuntimeError(
             "Claude CLI not found. Install it with: npm install -g @anthropic-ai/claude-code"
         )
+
+
+async def openai_completion(
+    prompt: str,
+    system: str | None = None,
+    model: str | None = None,
+    max_tokens: int = 2000,
+    temperature: float = 0.7,
+) -> str:
+    """Call OpenAI via the official SDK."""
+    api_key = settings.openai_api_key
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY is not configured")
+
+    client = AsyncOpenAI(api_key=api_key)
+    messages: list[dict] = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": prompt})
+
+    response = await client.chat.completions.create(
+        model=model or settings.openai_model,
+        messages=messages,
+        max_completion_tokens=max_tokens,
+        temperature=temperature,
+    )
+    return response.choices[0].message.content.strip()

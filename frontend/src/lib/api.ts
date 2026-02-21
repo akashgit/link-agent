@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { FileUploadResponse, MediaAsset } from "./types";
+import type { FileUploadResponse, LinkedInValidation, MediaAsset } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
@@ -109,6 +109,24 @@ export const fetchSetting = (key: string) =>
 
 export const upsertSetting = (key: string, value: string) =>
   api.put(`/settings/${key}`, { value }).then((r) => r.data);
+
+// Typefully / LinkedIn
+export const validateLinkedIn = (content: string): Promise<LinkedInValidation> =>
+  api.post("/typefully/validate", { content }).then((r) => r.data);
+
+export const pushToTypefully = (postId: string): Promise<{ draft_id: string }> =>
+  api.post("/typefully/draft", { post_id: postId }).then((r) => r.data);
+
+export const scheduleOnTypefully = (
+  postId: string,
+  publishAt: string,
+): Promise<{ draft_id: string }> =>
+  api.post("/typefully/schedule", { post_id: postId, publish_at: publishAt }).then((r) => r.data);
+
+export const getTypefullyStatus = (
+  postId: string,
+): Promise<{ status: string; draft: Record<string, unknown> }> =>
+  api.get(`/typefully/draft/${postId}`).then((r) => r.data);
 
 // Health
 export const fetchHealth = () =>

@@ -30,10 +30,24 @@ class AgentState(TypedDict, total=False):
     optimization_changes: list[str]
     suggested_hashtags: list[str]
 
+    # Fact-checking
+    fact_check_results: list[dict]
+    fact_check_performed: bool
+
+    # Image decision
+    retrieved_images: list[dict]
+    image_source_decision: str  # "generated" | "uploaded" | "retrieved"
+    image_decision_reasoning: str
+    original_image_url: str
+
     # Proofread
     proofread_content: str
     proofread_corrections: list[str]
     tone_check_passed: bool
+
+    # LinkedIn validation
+    linkedin_char_count: int
+    linkedin_warnings: list[str]
 
     # Approval
     approval_status: str

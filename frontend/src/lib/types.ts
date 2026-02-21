@@ -9,6 +9,7 @@ export interface Post {
   user_input: string | null;
   uploaded_file_text: string | null;
   revision_count: number;
+  typefully_draft_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -88,4 +89,12 @@ export interface AgentResumeRequest {
 export interface SSEEvent {
   event: string;
   data: Record<string, unknown>;
+}
+
+export interface LinkedInValidation {
+  valid: boolean;
+  char_count: number;
+  word_count: number;
+  hook_preview: string;
+  warnings: string[];
 }

@@ -11,6 +11,7 @@ const SOURCE_LABELS: Record<string, { label: string; className: string }> = {
   generated: { label: "Generated", className: "bg-purple-100 text-purple-700" },
   extracted: { label: "Extracted", className: "bg-blue-100 text-blue-700" },
   uploaded: { label: "Uploaded", className: "bg-gray-100 text-gray-600" },
+  web_retrieved: { label: "Web", className: "bg-green-100 text-green-700" },
 };
 
 interface PostMediaProps {
@@ -82,7 +83,7 @@ export function PostMedia({ postId }: PostMediaProps) {
       ) : (
         <div className="grid grid-cols-2 gap-2">
           {imageAssets.map((asset) => {
-            const sourceInfo = SOURCE_LABELS[asset.source || "uploaded"];
+            const sourceInfo = SOURCE_LABELS[asset.source || "uploaded"] || SOURCE_LABELS.uploaded;
             return (
               <div key={asset.id} className="relative group rounded-lg overflow-hidden border border-gray-200">
                 <img

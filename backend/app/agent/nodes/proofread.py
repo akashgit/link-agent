@@ -3,6 +3,7 @@ import re
 from app.agent.state import AgentState
 from app.agent.prompts.proofread import PROOFREAD_PROMPT
 from app.services.llm import llm_completion
+from app.utils.linkedin import strip_markdown, validate_linkedin_post
 
 
 async def proofread_node(state: AgentState) -> dict:
@@ -17,7 +18,9 @@ async def proofread_node(state: AgentState) -> dict:
     corrections = []
     tone_passed = True
 
-    proof_match = re.search(r"## Proofread Post\n(.*?)(?=## Corrections Made|\Z)", result, re.DOTALL)
+    proof_match = re.search(
+        r"## Proofread Post\n(.*?)(?=## Corrections Made|\Z)", result, re.DOTALL
+    )
     if proof_match:
         proofread = proof_match.group(1).strip()
 
@@ -34,9 +37,14 @@ async def proofread_node(state: AgentState) -> dict:
         tone_text = tone_match.group(1).strip().upper()
         tone_passed = "PASS" in tone_text
 
+    final_proofread = strip_markdown(proofread) if proofread else state.get("optimized_content", "")
+    validation = validate_linkedin_post(final_proofread)
+
     return {
-        "proofread_content": proofread or state.get("optimized_content", ""),
+        "proofread_content": final_proofread,
         "proofread_corrections": corrections,
         "tone_check_passed": tone_passed,
+        "linkedin_char_count": validation["char_count"],
+        "linkedin_warnings": validation["warnings"],
         "current_stage": "proofread",
     }

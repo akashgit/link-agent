@@ -1,14 +1,25 @@
-OPTIMIZE_PROMPT = """You are a LinkedIn algorithm optimization specialist. Take the following LinkedIn post draft and optimize it for maximum reach and engagement.
+OPTIMIZE_PROMPT = """You are a LinkedIn algorithm optimization specialist backed by research on 1.8M+ LinkedIn posts. Take the following LinkedIn post draft and optimize it for maximum reach and engagement.
 
 Optimization rules:
-1. Hook must be in the first 2 lines (before "see more" cutoff)
-2. Use short paragraphs (1-3 sentences max)
-3. Total post should be 1300-2000 characters for optimal reach
-4. Add line breaks between paragraphs for readability
-5. End with a question to encourage comments
-6. Suggest 3-5 relevant hashtags (not too niche, not too broad)
-7. No emojis or minimal emojis only
-8. Ensure the opening creates curiosity or tension
+
+HOOK (first 210 characters)
+1. The first 210 characters are the mobile "see more" fold — 72% of LinkedIn users are on mobile. Lead with a bold claim, surprising statistic, or contrarian take that compels the reader to tap "see more"
+2. The hook must create curiosity or tension immediately. Avoid generic openings like "I'm excited to share…"
+
+STRUCTURE & VISUAL HIERARCHY
+3. Use short paragraphs of 1-3 sentences max. Every 2-3 sentences should have a line break. Use single-sentence paragraphs for impact
+4. Use Unicode bullets and symbols for scannable lists: → • ✓ ▸ — LinkedIn does NOT render markdown, so never use *, -, or # for formatting
+5. Total post must be strictly under 3000 characters (LinkedIn hard limit). Ideal range is 1300-2000 characters for optimal reach
+
+EMOJIS
+6. Use 1-3 emojis max, placed strategically at section starts or key emphasis points. Never use emoji clusters (multiple emojis in a row) or purely decorative emojis. Emojis should serve as visual anchors, not decoration — research shows >5 emojis hurts credibility and triggers "AI-generated" suspicion
+
+ENGAGEMENT
+7. End with a clear question to encourage comments — posts ending with a question get 2x more comments
+8. Suggest 3-5 relevant hashtags (not too niche, not too broad)
+
+FORMAT
+9. Output plain text only — no markdown formatting (no **, no _, no #, no []()). LinkedIn does not render markdown
 
 Current draft:
 {draft_content}
@@ -27,3 +38,81 @@ Return the optimized post with these sections:
 ## Suggested Hashtags
 (list of hashtags)
 """
+
+FACT_CHECK_SECTION = """
+
+FACT-CHECK RESULTS
+The following factual claims were checked against web sources. Review them carefully and apply corrections to the optimized post:
+
+{claims_text}
+
+Instructions:
+→ If a claim is contradicted by sources, correct it in the optimized post with accurate information
+→ If a claim cannot be verified, soften the language (e.g., "reportedly", "according to some estimates")
+→ If a claim is confirmed, keep it as-is
+
+After ## Suggested Hashtags, add this section:
+
+## Sources
+(list the most relevant source URLs from the fact-check results that support claims in the post, formatted as: Source Title - URL)
+"""
+
+IMAGE_DECISION_SECTION = """
+
+IMAGE SELECTION
+The post currently has this image status: {current_image_info}
+
+The following images were found on the web that may be relevant to this post:
+{retrieved_images_text}
+
+After the sources section (or after ## Suggested Hashtags if no sources), add this section:
+
+## Image Decision
+Choice: (one of: keep_current | retrieved_1 | retrieved_2 | retrieved_3)
+Reasoning: (brief explanation of why this image best supports the post's message)
+
+Choose "keep_current" if the existing AI-generated image is more appropriate, or "retrieved_N" if one of the web images is a better fit (e.g., a real data chart or infographic is more credible than an AI illustration).
+"""
+
+
+def build_optimize_prompt(
+    draft_content: str,
+    post_format: str,
+    content_pillar: str,
+    fact_check_results: list[dict] | None = None,
+    current_image_info: str = "",
+    retrieved_images: list[dict] | None = None,
+) -> str:
+    """Build the full optimize prompt, conditionally including fact-check and image decision sections."""
+    prompt = OPTIMIZE_PROMPT.format(
+        draft_content=draft_content,
+        post_format=post_format,
+        content_pillar=content_pillar,
+    )
+
+    if fact_check_results:
+        claims_lines = []
+        for i, item in enumerate(fact_check_results, 1):
+            claim_block = f"Claim {i}: {item['claim']}\n"
+            claim_block += f"  Search answer: {item.get('search_answer', 'No answer available')}\n"
+            for src in item.get("sources", []):
+                claim_block += f"  Source: {src.get('title', '')} - {src.get('url', '')}\n"
+                if src.get("snippet"):
+                    claim_block += f"    Snippet: {src['snippet']}\n"
+            claims_lines.append(claim_block)
+
+        prompt += FACT_CHECK_SECTION.format(claims_text="\n".join(claims_lines))
+
+    if retrieved_images:
+        img_lines = []
+        for i, img in enumerate(retrieved_images, 1):
+            desc = img.get("description", "No description")
+            url = img.get("url", "")
+            img_lines.append(f"  retrieved_{i}: {desc} ({url})")
+
+        prompt += IMAGE_DECISION_SECTION.format(
+            current_image_info=current_image_info or "AI-generated image",
+            retrieved_images_text="\n".join(img_lines),
+        )
+
+    return prompt

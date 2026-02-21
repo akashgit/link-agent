@@ -14,7 +14,12 @@ from app.models.post import Post, Draft, PostStatus
 from app.models.media_asset import MediaAsset, MediaSource
 from app.agent.graph import build_graph
 from app.agent.checkpointer import get_checkpointer
-from app.schemas.agent import AgentRunRequest, AgentRunResponse, AgentResumeRequest, AgentStatusResponse
+from app.schemas.agent import (
+    AgentRunRequest,
+    AgentRunResponse,
+    AgentResumeRequest,
+    AgentStatusResponse,
+)
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 logger = logging.getLogger(__name__)
@@ -26,6 +31,68 @@ def _disk_path_to_url(disk_path: str) -> str:
         return ""
     filename = os.path.basename(disk_path)
     return f"/api/uploads/file/{filename}"
+
+
+def _build_event_data(node_name: str, node_output: dict) -> dict:
+    """Build enriched SSE event data with stage descriptions and content previews."""
+    event_data: dict = {
+        "node": node_name,
+        "stage": node_output.get("current_stage", node_name),
+    }
+
+    if node_name == "research":
+        angles = node_output.get("trending_angles", [])
+        event_data["description"] = f"Found {len(angles)} trending angles"
+        if angles:
+            event_data["details"] = angles[:3]
+
+    elif node_name == "draft":
+        content = node_output.get("draft_content", "")
+        event_data["description"] = f"Draft created ({len(content)} chars)"
+        if content:
+            event_data["draft_content"] = content
+        hook = node_output.get("draft_hook", "")
+        if hook:
+            event_data["draft_hook"] = hook
+
+    elif node_name == "generate_image":
+        status = node_output.get("image_generation_status", "")
+        if status == "skipped_no_key":
+            event_data["description"] = "Image generation skipped (no API key)"
+        elif node_output.get("image_url"):
+            event_data["description"] = "Image generated successfully"
+        else:
+            event_data["description"] = "Image generation attempted"
+
+    elif node_name == "optimize":
+        changes = node_output.get("optimization_changes", [])
+        fact_checked = node_output.get("fact_check_performed", False)
+        parts = []
+        if changes:
+            parts.append(f"{len(changes)} optimizations applied")
+        if fact_checked:
+            claims = node_output.get("fact_check_results", [])
+            parts.append(f"{len(claims)} claims fact-checked")
+        img_decision = node_output.get("image_source_decision", "")
+        if img_decision == "retrieved":
+            parts.append("web image selected")
+        event_data["description"] = ", ".join(parts) if parts else "Post optimized"
+        if changes:
+            event_data["details"] = changes[:5]
+
+    elif node_name == "proofread":
+        corrections = node_output.get("proofread_corrections", [])
+        tone_passed = node_output.get("tone_check_passed", True)
+        parts = []
+        if corrections:
+            parts.append(f"{len(corrections)} corrections")
+        parts.append("tone check " + ("passed" if tone_passed else "failed"))
+        char_count = node_output.get("linkedin_char_count", 0)
+        if char_count:
+            parts.append(f"{char_count} chars")
+        event_data["description"] = ", ".join(parts)
+
+    return event_data
 
 
 @router.post("/run", response_model=AgentRunResponse)
@@ -97,17 +164,21 @@ async def stream_agent(thread_id: str, db: AsyncSession = Depends(get_db)):
                     if node_name == "__interrupt__":
                         # Convert image_url from disk path to HTTP URL
                         interrupt_value = node_output[0].value if node_output else {}
-                        if isinstance(interrupt_value, dict) and interrupt_value.get("image_url"):
-                            interrupt_value["image_url"] = _disk_path_to_url(interrupt_value["image_url"])
+                        if isinstance(interrupt_value, dict):
+                            if interrupt_value.get("image_url"):
+                                interrupt_value["image_url"] = _disk_path_to_url(
+                                    interrupt_value["image_url"]
+                                )
+                            if interrupt_value.get("original_image_url"):
+                                interrupt_value["original_image_url"] = _disk_path_to_url(
+                                    interrupt_value["original_image_url"]
+                                )
                         yield {
                             "event": "interrupt",
                             "data": json.dumps(interrupt_value),
                         }
                     else:
-                        event_data = {
-                            "node": node_name,
-                            "stage": node_output.get("current_stage", node_name),
-                        }
+                        event_data = _build_event_data(node_name, node_output)
 
                         # Handle image generation completion
                         if node_name == "generate_image" and node_output.get("image_url"):
@@ -129,6 +200,33 @@ async def stream_agent(thread_id: str, db: AsyncSession = Depends(get_db)):
                                 db.add(img_asset)
                                 await db.commit()
 
+                        # Handle optimize node image changes
+                        if node_name == "optimize":
+                            if node_output.get(
+                                "image_source_decision"
+                            ) == "retrieved" and node_output.get("image_url"):
+                                disk_path = node_output["image_url"]
+                                http_url = _disk_path_to_url(disk_path)
+                                event_data["image_url"] = http_url
+
+                                if os.path.exists(disk_path):
+                                    img_asset = MediaAsset(
+                                        post_id=post.id,
+                                        filename=os.path.basename(disk_path),
+                                        file_path=disk_path,
+                                        content_type="image/jpeg",
+                                        file_size=os.path.getsize(disk_path),
+                                        source=MediaSource.WEB_RETRIEVED,
+                                    )
+                                    db.add(img_asset)
+                                    await db.commit()
+
+                            if node_output.get("fact_check_performed"):
+                                event_data["fact_check_performed"] = True
+                                event_data["claims_checked"] = len(
+                                    node_output.get("fact_check_results", [])
+                                )
+
                         yield {
                             "event": "node_complete",
                             "data": json.dumps(event_data),
@@ -137,8 +235,9 @@ async def stream_agent(thread_id: str, db: AsyncSession = Depends(get_db)):
                         # Save draft if draft node completed
                         if node_name == "draft" and node_output.get("draft_content"):
                             max_ver = await db.execute(
-                                select(func.coalesce(func.max(Draft.version), 0))
-                                .where(Draft.post_id == post.id)
+                                select(func.coalesce(func.max(Draft.version), 0)).where(
+                                    Draft.post_id == post.id
+                                )
                             )
                             next_version = max_ver.scalar() + 1
                             draft = Draft(
@@ -198,17 +297,21 @@ async def resume_agent(
                     for node_name, node_output in event.items():
                         if node_name == "__interrupt__":
                             interrupt_value = node_output[0].value if node_output else {}
-                            if isinstance(interrupt_value, dict) and interrupt_value.get("image_url"):
-                                interrupt_value["image_url"] = _disk_path_to_url(interrupt_value["image_url"])
+                            if isinstance(interrupt_value, dict):
+                                if interrupt_value.get("image_url"):
+                                    interrupt_value["image_url"] = _disk_path_to_url(
+                                        interrupt_value["image_url"]
+                                    )
+                                if interrupt_value.get("original_image_url"):
+                                    interrupt_value["original_image_url"] = _disk_path_to_url(
+                                        interrupt_value["original_image_url"]
+                                    )
                             yield {
                                 "event": "interrupt",
                                 "data": json.dumps(interrupt_value),
                             }
                         else:
-                            event_data = {
-                                "node": node_name,
-                                "stage": node_output.get("current_stage", node_name),
-                            }
+                            event_data = _build_event_data(node_name, node_output)
 
                             # Handle image generation completion
                             if node_name == "generate_image" and node_output.get("image_url"):
@@ -229,6 +332,33 @@ async def resume_agent(
                                     db.add(img_asset)
                                     await db.commit()
 
+                            # Handle optimize node image changes
+                            if node_name == "optimize" and post:
+                                if node_output.get(
+                                    "image_source_decision"
+                                ) == "retrieved" and node_output.get("image_url"):
+                                    disk_path = node_output["image_url"]
+                                    http_url = _disk_path_to_url(disk_path)
+                                    event_data["image_url"] = http_url
+
+                                    if os.path.exists(disk_path):
+                                        img_asset = MediaAsset(
+                                            post_id=post.id,
+                                            filename=os.path.basename(disk_path),
+                                            file_path=disk_path,
+                                            content_type="image/jpeg",
+                                            file_size=os.path.getsize(disk_path),
+                                            source=MediaSource.WEB_RETRIEVED,
+                                        )
+                                        db.add(img_asset)
+                                        await db.commit()
+
+                                if node_output.get("fact_check_performed"):
+                                    event_data["fact_check_performed"] = True
+                                    event_data["claims_checked"] = len(
+                                        node_output.get("fact_check_results", [])
+                                    )
+
                             yield {
                                 "event": "node_complete",
                                 "data": json.dumps(event_data),
@@ -237,8 +367,9 @@ async def resume_agent(
                             # Save draft if draft node completed
                             if post and node_name == "draft" and node_output.get("draft_content"):
                                 max_ver = await db.execute(
-                                    select(func.coalesce(func.max(Draft.version), 0))
-                                    .where(Draft.post_id == post.id)
+                                    select(func.coalesce(func.max(Draft.version), 0)).where(
+                                        Draft.post_id == post.id
+                                    )
                                 )
                                 next_version = max_ver.scalar() + 1
                                 draft = Draft(

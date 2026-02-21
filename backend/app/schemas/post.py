@@ -43,6 +43,7 @@ class PostResponse(BaseModel):
     user_input: str | None
     uploaded_file_text: str | None
     revision_count: int
+    typefully_draft_id: str | None = None
     created_at: datetime
     updated_at: datetime
 

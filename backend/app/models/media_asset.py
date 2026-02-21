@@ -13,14 +13,13 @@ class MediaSource(str, enum.Enum):
     GENERATED = "generated"
     EXTRACTED = "extracted"
     UPLOADED = "uploaded"
+    WEB_RETRIEVED = "web_retrieved"
 
 
 class MediaAsset(Base):
     __tablename__ = "media_assets"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     post_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("posts.id", ondelete="SET NULL"), nullable=True
     )
@@ -32,6 +31,4 @@ class MediaAsset(Base):
         String(20), default=MediaSource.UPLOADED, nullable=False, server_default="uploaded"
     )
     prompt_used: Mapped[str | None] = mapped_column(String(1000), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
