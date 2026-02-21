@@ -84,19 +84,8 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
     .filter((e) => e.event === "node_complete")
     .map((e) => (e.data as Record<string, string>).node || (e.data as Record<string, string>).stage);
 
-  // Extract image URL from node_complete events (generate_image or optimize)
+  // Extract image URL from generate_image node completion
   const generatedImageUrl = useMemo(() => {
-    // Check optimize node first (may override with retrieved image)
-    const optimizeEvent = events.find(
-      (e) =>
-        e.event === "node_complete" &&
-        (e.data as Record<string, string>).node === "optimize" &&
-        (e.data as Record<string, string>).image_url,
-    );
-    if (optimizeEvent) {
-      return (optimizeEvent.data as Record<string, string>).image_url;
-    }
-    // Fall back to generate_image node
     const imageEvent = events.find(
       (e) =>
         e.event === "node_complete" &&

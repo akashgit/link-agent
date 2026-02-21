@@ -57,33 +57,14 @@ After ## Suggested Hashtags, add this section:
 (list the most relevant source URLs from the fact-check results that support claims in the post, formatted as: Source Title - URL)
 """
 
-IMAGE_DECISION_SECTION = """
-
-IMAGE SELECTION
-The post currently has this image status: {current_image_info}
-
-The following images were found on the web that may be relevant to this post:
-{retrieved_images_text}
-
-After the sources section (or after ## Suggested Hashtags if no sources), add this section:
-
-## Image Decision
-Choice: (one of: keep_current | retrieved_1 | retrieved_2 | retrieved_3)
-Reasoning: (brief explanation of why this image best supports the post's message)
-
-Choose "keep_current" if the existing AI-generated image is more appropriate, or "retrieved_N" if one of the web images is a better fit (e.g., a real data chart or infographic is more credible than an AI illustration).
-"""
-
 
 def build_optimize_prompt(
     draft_content: str,
     post_format: str,
     content_pillar: str,
     fact_check_results: list[dict] | None = None,
-    current_image_info: str = "",
-    retrieved_images: list[dict] | None = None,
 ) -> str:
-    """Build the full optimize prompt, conditionally including fact-check and image decision sections."""
+    """Build the full optimize prompt, conditionally including fact-check section."""
     prompt = OPTIMIZE_PROMPT.format(
         draft_content=draft_content,
         post_format=post_format,
@@ -102,17 +83,5 @@ def build_optimize_prompt(
             claims_lines.append(claim_block)
 
         prompt += FACT_CHECK_SECTION.format(claims_text="\n".join(claims_lines))
-
-    if retrieved_images:
-        img_lines = []
-        for i, img in enumerate(retrieved_images, 1):
-            desc = img.get("description", "No description")
-            url = img.get("url", "")
-            img_lines.append(f"  retrieved_{i}: {desc} ({url})")
-
-        prompt += IMAGE_DECISION_SECTION.format(
-            current_image_info=current_image_info or "AI-generated image",
-            retrieved_images_text="\n".join(img_lines),
-        )
 
     return prompt

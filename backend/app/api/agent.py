@@ -73,9 +73,6 @@ def _build_event_data(node_name: str, node_output: dict) -> dict:
         if fact_checked:
             claims = node_output.get("fact_check_results", [])
             parts.append(f"{len(claims)} claims fact-checked")
-        img_decision = node_output.get("image_source_decision", "")
-        if img_decision == "retrieved":
-            parts.append("web image selected")
         event_data["description"] = ", ".join(parts) if parts else "Post optimized"
         if changes:
             event_data["details"] = changes[:5]
@@ -200,27 +197,8 @@ async def stream_agent(thread_id: str, db: AsyncSession = Depends(get_db)):
                                 db.add(img_asset)
                                 await db.commit()
 
-                        # Handle optimize node image changes
+                        # Handle optimize node fact-check info
                         if node_name == "optimize":
-                            if node_output.get(
-                                "image_source_decision"
-                            ) == "retrieved" and node_output.get("image_url"):
-                                disk_path = node_output["image_url"]
-                                http_url = _disk_path_to_url(disk_path)
-                                event_data["image_url"] = http_url
-
-                                if os.path.exists(disk_path):
-                                    img_asset = MediaAsset(
-                                        post_id=post.id,
-                                        filename=os.path.basename(disk_path),
-                                        file_path=disk_path,
-                                        content_type="image/jpeg",
-                                        file_size=os.path.getsize(disk_path),
-                                        source=MediaSource.WEB_RETRIEVED,
-                                    )
-                                    db.add(img_asset)
-                                    await db.commit()
-
                             if node_output.get("fact_check_performed"):
                                 event_data["fact_check_performed"] = True
                                 event_data["claims_checked"] = len(
@@ -369,27 +347,8 @@ async def resume_agent(
                                     db.add(img_asset)
                                     await db.commit()
 
-                            # Handle optimize node image changes
+                            # Handle optimize node fact-check info
                             if node_name == "optimize" and post:
-                                if node_output.get(
-                                    "image_source_decision"
-                                ) == "retrieved" and node_output.get("image_url"):
-                                    disk_path = node_output["image_url"]
-                                    http_url = _disk_path_to_url(disk_path)
-                                    event_data["image_url"] = http_url
-
-                                    if os.path.exists(disk_path):
-                                        img_asset = MediaAsset(
-                                            post_id=post.id,
-                                            filename=os.path.basename(disk_path),
-                                            file_path=disk_path,
-                                            content_type="image/jpeg",
-                                            file_size=os.path.getsize(disk_path),
-                                            source=MediaSource.WEB_RETRIEVED,
-                                        )
-                                        db.add(img_asset)
-                                        await db.commit()
-
                                 if node_output.get("fact_check_performed"):
                                     event_data["fact_check_performed"] = True
                                     event_data["claims_checked"] = len(
