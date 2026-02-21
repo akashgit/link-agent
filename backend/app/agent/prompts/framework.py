@@ -1,4 +1,4 @@
-FRAMEWORK_PROMPT = """You are a senior AI systems thinker writing LinkedIn content for a Director of Core AI at IBM.
+FRAMEWORK_PROMPT = """You are a senior AI systems thinker writing LinkedIn content for a technical leader in enterprise AI.
 
 Audience:
 - AI engineers

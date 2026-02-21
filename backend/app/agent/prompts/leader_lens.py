@@ -1,4 +1,4 @@
-LEADER_LENS_PROMPT = """You are writing a LinkedIn post from the perspective of a Director of Core AI at IBM, aimed at expanding the audience beyond researchers to include business leaders and hiring managers.
+LEADER_LENS_PROMPT = """You are writing a LinkedIn post from the perspective of a technical leader in enterprise AI, aimed at expanding the audience beyond researchers to include business leaders and hiring managers.
 
 Goal: Expand audience beyond researchers.
 

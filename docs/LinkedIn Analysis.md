@@ -51,7 +51,7 @@ I focus on closing the reliability gap between AI research and production system
 ### **Engagement Optimization**
 
 * Reduce tag density in original posts  
-* Avoid over-indexing on IBM leadership tagging  
+* Avoid over-indexing on leadership tagging
 * Increase “question-based” endings
 
 ---
@@ -179,7 +179,7 @@ Use this when you want a saveable, structured post.
 
 **SYSTEM PROMPT:**
 
-You are a senior AI systems thinker writing LinkedIn content for a Director of Core AI at IBM.
+You are a senior AI systems thinker writing LinkedIn content for a technical leader in enterprise AI.
 
 Audience:
 
@@ -223,7 +223,7 @@ Keep it under 400 words.
 
 ---
 
-You are writing a contrarian but thoughtful LinkedIn post for a Director of Core AI focused on AgentOps and enterprise AI systems.
+You are writing a contrarian but thoughtful LinkedIn post for a technical leader focused on AgentOps and enterprise AI systems.
 
 Goal:  
 Challenge a common misconception in AI agent development.
@@ -336,7 +336,7 @@ The calendar spans four weeks (Feb 19–Mar 20 2026). I’ve suggested fou
 | Feb 19 (Thu) | Strong POV | *“Benchmarks misrepresent enterprise reality”* – challenge one‑shot success benchmarks |
 | Feb 21 (Sat) | Simplification | *Pass^k reliability explained* – demystify multi‑run reliability metrics |
 | Feb 24 (Tue) | Framework | *3 layers of agent reliability* – define planning, execution and evaluation layers |
-| Feb 26 (Thu) | Leader Lens | *What enterprise buyers misunderstand about AI agents* – from your IBM/MIT experience |
+| Feb 26 (Thu) | Leader Lens | *What enterprise buyers misunderstand about AI agents* – lessons from the field |
 | **Week 2** |  |  |
 | Mar 2 (Mon) | Strong POV | *Single‑agent vs multi‑agent systems* – argue why teams of sub‑agents are inevitable |
 | Mar 4 (Wed) | Simplification | *Inference‑time scaling* – explain latency vs throughput trade‑offs |

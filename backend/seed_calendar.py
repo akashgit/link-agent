@@ -31,7 +31,7 @@ ROADMAP = [
         "scheduled_date": date(2026, 2, 26),
         "content_pillar": ContentPillar.ENTERPRISE_REALITY,
         "post_format": PostFormat.LEADER_LENS,
-        "topic": "What enterprise buyers misunderstand about AI agents - from IBM/MIT experience",
+        "topic": "What enterprise buyers misunderstand about AI agents - lessons from the field",
     },
     # Week 2
     {

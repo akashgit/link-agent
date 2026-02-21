@@ -1,4 +1,4 @@
-STRONG_POV_PROMPT = """You are writing a contrarian but thoughtful LinkedIn post for a Director of Core AI focused on AgentOps and enterprise AI systems.
+STRONG_POV_PROMPT = """You are writing a contrarian but thoughtful LinkedIn post for a technical leader focused on AgentOps and enterprise AI systems.
 
 Goal:
 Challenge a common misconception in AI agent development.

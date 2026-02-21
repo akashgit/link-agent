@@ -19,8 +19,8 @@ export function PostPreview({ content, hashtags, imageUrl }: PostPreviewProps) {
       <div className="flex items-center gap-3 p-4">
         <div className="h-12 w-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold">A</div>
         <div>
-          <p className="font-semibold text-sm text-gray-900">Akash Srivastava</p>
-          <p className="text-xs text-gray-500">Director of Core AI at IBM</p>
+          <p className="font-semibold text-sm text-gray-900">Your Name</p>
+          <p className="text-xs text-gray-500">Your Title</p>
           <p className="text-xs text-gray-400">Just now</p>
         </div>
       </div>

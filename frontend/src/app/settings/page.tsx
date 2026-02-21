@@ -10,8 +10,8 @@ import { useSettings, useUpsertSetting } from "@/hooks/useSettings";
 import { useToast } from "@/components/ui/Toast";
 
 const SETTINGS_SCHEMA = [
-  { key: "author_name", label: "Author Name", type: "input", placeholder: "Akash Srivastava" },
-  { key: "author_title", label: "Author Title", type: "input", placeholder: "Director of Core AI at IBM" },
+  { key: "author_name", label: "Author Name", type: "input", placeholder: "Jane Smith" },
+  { key: "author_title", label: "Author Title", type: "input", placeholder: "VP of Engineering at Acme Corp" },
   { key: "litellm_model", label: "LLM Model", type: "input", placeholder: "anthropic/claude-sonnet-4-20250514" },
   { key: "default_tone", label: "Default Tone", type: "input", placeholder: "executive, clear, no hype" },
   { key: "custom_instructions", label: "Custom Instructions", type: "textarea", placeholder: "Any additional instructions for the AI agent..." },
