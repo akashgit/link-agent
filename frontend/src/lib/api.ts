@@ -125,6 +125,13 @@ export const scheduleOnTypefully = (
 ): Promise<{ draft_id: string }> =>
   api.post("/typefully/schedule", { post_id: postId, publish_at: publishAt }).then((r) => r.data);
 
+export const fetchTypefullyProfile = (): Promise<{
+  name: string;
+  profile_image_url: string;
+  username: string;
+  profile_url: string;
+}> => api.get("/typefully/profile").then((r) => r.data);
+
 export const getTypefullyStatus = (
   postId: string,
 ): Promise<{ status: string; draft: Record<string, unknown> }> =>

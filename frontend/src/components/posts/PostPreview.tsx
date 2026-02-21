@@ -7,20 +7,49 @@ interface PostPreviewProps {
   content: string;
   hashtags?: string[];
   imageUrl?: string;
+  authorName?: string;
+  authorTitle?: string;
+  authorImageUrl?: string;
 }
 
-export function PostPreview({ content, hashtags, imageUrl }: PostPreviewProps) {
+export function PostPreview({
+  content,
+  hashtags,
+  imageUrl,
+  authorName,
+  authorTitle,
+  authorImageUrl,
+}: PostPreviewProps) {
   const resolvedImageUrl = imageUrl ? getFileUrl(imageUrl) : null;
   const cleanContent = stripMarkdown(content);
+
+  const displayName = authorName || "Your Name";
+  const displayTitle = authorTitle || "Your Title";
+  const initials = displayName
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm max-w-[520px]">
       {/* LinkedIn header mockup */}
       <div className="flex items-center gap-3 p-4">
-        <div className="h-12 w-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold">A</div>
+        {authorImageUrl ? (
+          <img
+            src={authorImageUrl}
+            alt={displayName}
+            className="h-12 w-12 rounded-full object-cover"
+          />
+        ) : (
+          <div className="h-12 w-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold">
+            {initials}
+          </div>
+        )}
         <div>
-          <p className="font-semibold text-sm text-gray-900">Your Name</p>
-          <p className="text-xs text-gray-500">Your Title</p>
+          <p className="font-semibold text-sm text-gray-900">{displayName}</p>
+          <p className="text-xs text-gray-500">{displayTitle}</p>
           <p className="text-xs text-gray-400">Just now</p>
         </div>
       </div>

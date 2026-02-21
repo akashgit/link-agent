@@ -20,6 +20,28 @@ async def get_social_sets() -> list[dict]:
         return resp.json()
 
 
+async def get_linkedin_profile() -> dict:
+    """Fetch LinkedIn profile info from the configured social set."""
+    social_set_id = settings.typefully_social_set_id
+    if not social_set_id:
+        return {}
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{BASE_URL}/v2/social-sets/{social_set_id}",
+            headers=_headers(),
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+    linkedin = data.get("platforms", {}).get("linkedin", {})
+    return {
+        "name": linkedin.get("name", ""),
+        "profile_image_url": linkedin.get("profile_image_url", ""),
+        "username": linkedin.get("username", ""),
+        "profile_url": linkedin.get("profile_url", ""),
+    }
+
+
 async def create_draft(
     text: str,
     hashtags: list[str] | None = None,

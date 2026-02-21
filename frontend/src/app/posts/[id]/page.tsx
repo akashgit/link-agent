@@ -22,6 +22,7 @@ import {
   runAgent,
   resumeAgent,
   fetchPostMedia,
+  fetchTypefullyProfile,
   deletePost,
   pushToTypefully,
   scheduleOnTypefully,
@@ -67,6 +68,13 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
   const { data: mediaAssets = [] } = useQuery({
     queryKey: ["post-media", id],
     queryFn: () => fetchPostMedia(id),
+  });
+
+  const { data: typefullyProfile } = useQuery({
+    queryKey: ["typefully-profile"],
+    queryFn: fetchTypefullyProfile,
+    staleTime: 1000 * 60 * 30, // cache for 30 minutes
+    retry: false,
   });
 
   const {
@@ -343,6 +351,8 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
           content={displayContent}
           hashtags={displayHashtags}
           imageUrl={displayImageUrl}
+          authorName={typefullyProfile?.name}
+          authorImageUrl={typefullyProfile?.profile_image_url}
         />
         <PostMedia postId={id} />
       </div>

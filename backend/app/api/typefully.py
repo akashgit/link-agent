@@ -27,6 +27,19 @@ class ScheduleRequest(BaseModel):
     publish_at: str
 
 
+@router.get("/profile")
+async def get_typefully_profile():
+    """Get LinkedIn profile info from the connected Typefully social set."""
+    if not settings.typefully_api_key:
+        raise HTTPException(status_code=400, detail="Typefully API key not configured")
+    if not settings.typefully_social_set_id:
+        raise HTTPException(status_code=400, detail="Typefully social set ID not configured")
+    try:
+        return await typefully_service.get_linkedin_profile()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to fetch profile: {e}")
+
+
 @router.post("/validate")
 async def validate_content(body: ValidateRequest):
     """Validate content against LinkedIn formatting constraints."""
