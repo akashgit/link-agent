@@ -82,6 +82,7 @@ class Draft(Base):
     cta: Mapped[str | None] = mapped_column(Text, nullable=True)
     hashtags: Mapped[str | None] = mapped_column(Text, nullable=True)
     feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
+    stage: Mapped[str | None] = mapped_column(String(50), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

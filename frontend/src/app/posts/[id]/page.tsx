@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo, use } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useMemo, useRef, use } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -17,8 +17,9 @@ import { ApprovalPanel } from "@/components/agent/ApprovalPanel";
 import { usePost } from "@/hooks/usePosts";
 import { useUpdatePost } from "@/hooks/usePosts";
 import { useSSE } from "@/hooks/useSSE";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  runAgent,
   resumeAgent,
   fetchPostMedia,
   deletePost,
@@ -33,12 +34,29 @@ import type { Draft, MediaAsset } from "@/lib/types";
 export default function PostDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { data: post, isLoading, refetch } = usePost(id);
   const updatePost = useUpdatePost();
 
   const [selectedDraft, setSelectedDraft] = useState<Draft | null>(null);
   const [resuming, setResuming] = useState(false);
+  const [userEditedContent, setUserEditedContent] = useState<string | null>(null);
+
+  // SSE only connects when explicitly enabled — never on page load.
+  // The ?streaming=1 param (set by the create flow) auto-enables it.
+  const [sseEnabled, setSseEnabled] = useState(false);
+  const initializedRef = useRef(false);
+
+  useEffect(() => {
+    if (initializedRef.current || !post) return;
+    initializedRef.current = true;
+
+    if (searchParams.get("streaming") === "1" && post.status === "drafting") {
+      setSseEnabled(true);
+    }
+  }, [post, searchParams]);
 
   // Typefully state
   const [typefullyLoading, setTypefullyLoading] = useState(false);
@@ -59,7 +77,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
     isComplete,
     error: sseError,
   } = useSSE({
-    threadId: post?.thread_id || null,
+    threadId: sseEnabled ? post?.thread_id || null : null,
   });
 
   const completedStages = events
@@ -110,6 +128,17 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
     if (isComplete || isInterrupted) refetch();
   }, [isComplete, isInterrupted, refetch]);
 
+  // Invalidate post query when content nodes complete to update version history
+  useEffect(() => {
+    if (events.length === 0) return;
+    const lastEvent = events[events.length - 1];
+    if (lastEvent.event !== "node_complete") return;
+    const node = (lastEvent.data as Record<string, string>).node;
+    if (node === "draft" || node === "optimize" || node === "proofread") {
+      queryClient.invalidateQueries({ queryKey: ["post", id] });
+    }
+  }, [events, queryClient, id]);
+
   // Get content from interrupt data (proofread_content), drafts, or final_content
   const interruptContent = interruptData?.proofread_content as string | undefined;
   const interruptHashtags = interruptData?.suggested_hashtags as string[] | undefined;
@@ -145,8 +174,13 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
     if (!post?.thread_id) return;
     setResuming(true);
     try {
-      await resumeAgent(post.thread_id, { status: "approved" });
+      const payload: { status: string; content_override?: string } = { status: "approved" };
+      if (userEditedContent !== null) {
+        payload.content_override = userEditedContent;
+      }
+      await resumeAgent(post.thread_id, payload);
       toast("Post approved!", "success");
+      setUserEditedContent(null);
       refetch();
     } catch {
       toast("Failed to approve", "error");
@@ -171,8 +205,31 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
 
   const handleSaveContent = async (content: string) => {
     if (!post) return;
+    setUserEditedContent(content);
     await updatePost.mutateAsync({ id: post.id, data: { final_content: content } });
     toast("Content saved", "success");
+  };
+
+  const [revising, setRevising] = useState(false);
+
+  const handleRevise = async () => {
+    if (!post) return;
+    setRevising(true);
+    try {
+      await runAgent({
+        post_id: post.id,
+        user_input: post.user_input || undefined,
+        content_pillar: post.content_pillar,
+        post_format: post.post_format,
+      });
+      toast("Agent started — revising post...", "info");
+      await refetch();
+      setSseEnabled(true);
+    } catch {
+      toast("Failed to start revision", "error");
+    } finally {
+      setRevising(false);
+    }
   };
 
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -239,6 +296,9 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
     return <p className="text-center text-gray-500 py-20">Post not found.</p>;
   }
 
+  // Post is stuck in drafting from a previous session (not actively streaming)
+  const isStaleDrafting = !sseEnabled && post.status === "drafting" && !!post.thread_id;
+
   return (
     <div className="grid grid-cols-12 gap-6">
       {/* Left column: Editor */}
@@ -268,8 +328,13 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
         <PostEditor
           content={displayContent}
           onSave={handleSaveContent}
-          readOnly={post.status === "drafting"}
+          readOnly={post.status === "drafting" && !isInterrupted}
         />
+        {isInterrupted && userEditedContent !== null && (
+          <p className="text-xs text-blue-600">
+            Your edits will be used as final content when approved.
+          </p>
+        )}
 
         {post.drafts && post.drafts.length > 0 && (
           <Card>
@@ -295,7 +360,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
 
       {/* Right column: Workflow */}
       <div className="col-span-3 space-y-4">
-        {post.thread_id && (
+        {sseEnabled && post.thread_id && (
           <>
             <Card>
               <AgentWorkflow currentStage={currentNode} completedStages={completedStages} events={events} />
@@ -327,6 +392,56 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
             <p className="text-sm text-green-800 font-medium">Post approved and finalized.</p>
             <Button variant="ghost" size="sm" className="mt-2" onClick={() => router.push("/posts")}>
               Back to Posts
+            </Button>
+          </Card>
+        )}
+
+        {/* Stale drafting post — was started in a previous session */}
+        {isStaleDrafting && (
+          <Card>
+            <h4 className="font-semibold text-sm mb-2">Workflow Paused</h4>
+            <p className="text-xs text-gray-500 mb-3">
+              This post has an in-progress workflow from a previous session.
+            </p>
+            <div className="space-y-2">
+              <Button
+                size="sm"
+                onClick={() => setSseEnabled(true)}
+                className="w-full"
+              >
+                Resume Workflow
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={handleRevise}
+                loading={revising}
+                className="w-full"
+              >
+                Restart from Scratch
+              </Button>
+            </div>
+          </Card>
+        )}
+
+        {/* Run / Revise agent button — for posts not currently streaming and not stale-drafting */}
+        {!sseEnabled && !isStaleDrafting && (
+          <Card>
+            <h4 className="font-semibold text-sm mb-2">
+              {post.thread_id ? "Revise Content" : "Generate Content"}
+            </h4>
+            <p className="text-xs text-gray-500 mb-3">
+              {post.thread_id
+                ? "Run the agent pipeline again to create a new version."
+                : "Start the agent pipeline to generate content for this post."}
+            </p>
+            <Button
+              size="sm"
+              onClick={handleRevise}
+              loading={revising}
+              className="w-full"
+            >
+              {post.thread_id ? "Revise with Agent" : "Run Agent"}
             </Button>
           </Card>
         )}
@@ -442,12 +557,6 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                 )}
               </div>
             )}
-          </Card>
-        )}
-
-        {!post.thread_id && post.status === "idea" && (
-          <Card>
-            <p className="text-sm text-gray-500">This post hasn&apos;t been processed by the agent yet. Go to Create Post to generate content.</p>
           </Card>
         )}
       </div>

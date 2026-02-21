@@ -246,6 +246,43 @@ async def stream_agent(thread_id: str, db: AsyncSession = Depends(get_db)):
                                 content=node_output["draft_content"],
                                 hook=node_output.get("draft_hook"),
                                 cta=node_output.get("draft_cta"),
+                                stage="draft",
+                            )
+                            db.add(draft)
+                            await db.commit()
+
+                        # Save draft for optimize stage
+                        if node_name == "optimize" and node_output.get("optimized_content"):
+                            max_ver = await db.execute(
+                                select(func.coalesce(func.max(Draft.version), 0)).where(
+                                    Draft.post_id == post.id
+                                )
+                            )
+                            next_version = max_ver.scalar() + 1
+                            hashtags = node_output.get("suggested_hashtags", [])
+                            draft = Draft(
+                                post_id=post.id,
+                                version=next_version,
+                                content=node_output["optimized_content"],
+                                hashtags=", ".join(hashtags) if hashtags else None,
+                                stage="optimize",
+                            )
+                            db.add(draft)
+                            await db.commit()
+
+                        # Save draft for proofread stage
+                        if node_name == "proofread" and node_output.get("proofread_content"):
+                            max_ver = await db.execute(
+                                select(func.coalesce(func.max(Draft.version), 0)).where(
+                                    Draft.post_id == post.id
+                                )
+                            )
+                            next_version = max_ver.scalar() + 1
+                            draft = Draft(
+                                post_id=post.id,
+                                version=next_version,
+                                content=node_output["proofread_content"],
+                                stage="proofread",
                             )
                             db.add(draft)
                             await db.commit()
@@ -378,6 +415,51 @@ async def resume_agent(
                                     content=node_output["draft_content"],
                                     hook=node_output.get("draft_hook"),
                                     cta=node_output.get("draft_cta"),
+                                    stage="draft",
+                                )
+                                db.add(draft)
+                                await db.commit()
+
+                            # Save draft for optimize stage
+                            if (
+                                post
+                                and node_name == "optimize"
+                                and node_output.get("optimized_content")
+                            ):
+                                max_ver = await db.execute(
+                                    select(func.coalesce(func.max(Draft.version), 0)).where(
+                                        Draft.post_id == post.id
+                                    )
+                                )
+                                next_version = max_ver.scalar() + 1
+                                hashtags = node_output.get("suggested_hashtags", [])
+                                draft = Draft(
+                                    post_id=post.id,
+                                    version=next_version,
+                                    content=node_output["optimized_content"],
+                                    hashtags=", ".join(hashtags) if hashtags else None,
+                                    stage="optimize",
+                                )
+                                db.add(draft)
+                                await db.commit()
+
+                            # Save draft for proofread stage
+                            if (
+                                post
+                                and node_name == "proofread"
+                                and node_output.get("proofread_content")
+                            ):
+                                max_ver = await db.execute(
+                                    select(func.coalesce(func.max(Draft.version), 0)).where(
+                                        Draft.post_id == post.id
+                                    )
+                                )
+                                next_version = max_ver.scalar() + 1
+                                draft = Draft(
+                                    post_id=post.id,
+                                    version=next_version,
+                                    content=node_output["proofread_content"],
+                                    stage="proofread",
                                 )
                                 db.add(draft)
                                 await db.commit()
@@ -388,7 +470,12 @@ async def resume_agent(
 
                 if final.get("approval_status") == "approved" and post:
                     post.status = PostStatus.APPROVED
-                    post.final_content = final.get("proofread_content", "")
+                    final_content = (
+                        request.content_override
+                        if request.content_override
+                        else final.get("proofread_content", "")
+                    )
+                    post.final_content = final_content
                     post.revision_count = final.get("revision_count", 0)
                     await db.commit()
                     yield {

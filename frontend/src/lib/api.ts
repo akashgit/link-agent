@@ -52,8 +52,10 @@ export const runAgent = (data: {
   uploaded_file_text?: string;
 }) => api.post("/agent/run", data).then((r) => r.data);
 
-export const resumeAgent = (threadId: string, data: { status: string; feedback?: string }) =>
-  api.post(`/agent/resume/${threadId}`, data).then((r) => r.data);
+export const resumeAgent = (
+  threadId: string,
+  data: { status: string; feedback?: string; content_override?: string },
+) => api.post(`/agent/resume/${threadId}`, data).then((r) => r.data);
 
 export const fetchAgentStatus = (threadId: string) =>
   api.get(`/agent/status/${threadId}`).then((r) => r.data);

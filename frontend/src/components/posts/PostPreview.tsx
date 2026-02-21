@@ -1,6 +1,7 @@
 "use client";
 
 import { getFileUrl } from "@/lib/api";
+import { stripMarkdown } from "@/utils/stripMarkdown";
 
 interface PostPreviewProps {
   content: string;
@@ -10,6 +11,7 @@ interface PostPreviewProps {
 
 export function PostPreview({ content, hashtags, imageUrl }: PostPreviewProps) {
   const resolvedImageUrl = imageUrl ? getFileUrl(imageUrl) : null;
+  const cleanContent = stripMarkdown(content);
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm max-w-[520px]">
@@ -26,7 +28,7 @@ export function PostPreview({ content, hashtags, imageUrl }: PostPreviewProps) {
       {/* Content */}
       <div className="px-4 pb-3">
         <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
-          {content}
+          {cleanContent}
         </div>
         {hashtags && hashtags.length > 0 && (
           <p className="text-sm text-blue-600 mt-3">{hashtags.join(" ")}</p>

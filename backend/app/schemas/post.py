@@ -27,6 +27,7 @@ class DraftResponse(BaseModel):
     cta: str | None
     hashtags: str | None
     feedback: str | None
+    stage: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

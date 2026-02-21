@@ -1,7 +1,20 @@
 "use client";
 
 import { formatRelative } from "@/utils/formatDate";
+import { Badge } from "@/components/ui/Badge";
 import type { Draft } from "@/lib/types";
+
+const STAGE_LABELS: Record<string, string> = {
+  draft: "Draft",
+  optimize: "Optimized",
+  proofread: "Proofread",
+};
+
+const STAGE_COLORS: Record<string, string> = {
+  draft: "bg-blue-100 text-blue-700",
+  optimize: "bg-purple-100 text-purple-700",
+  proofread: "bg-green-100 text-green-700",
+};
 
 interface PostVersionHistoryProps {
   drafts: Draft[];
@@ -26,7 +39,14 @@ export function PostVersionHistory({ drafts, onSelect, selectedId }: PostVersion
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="font-medium">v{draft.version}</span>
+            <div className="flex items-center gap-2">
+              <span className="font-medium">v{draft.version}</span>
+              {draft.stage && (
+                <Badge className={STAGE_COLORS[draft.stage] || "bg-gray-100 text-gray-600"}>
+                  {STAGE_LABELS[draft.stage] || draft.stage}
+                </Badge>
+              )}
+            </div>
             <span className="text-xs text-gray-500">{formatRelative(draft.created_at)}</span>
           </div>
           {draft.feedback && (

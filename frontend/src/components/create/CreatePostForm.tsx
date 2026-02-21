@@ -60,7 +60,7 @@ export function CreatePostForm() {
       });
 
       toast("Agent started! Redirecting to post detail...", "success");
-      router.push(`/posts/${post.id}`);
+      router.push(`/posts/${post.id}?streaming=1`);
     } catch (err) {
       toast("Failed to start agent. Check your backend connection.", "error");
     } finally {

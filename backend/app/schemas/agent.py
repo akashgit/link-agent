@@ -18,6 +18,7 @@ class AgentRunResponse(BaseModel):
 class AgentResumeRequest(BaseModel):
     status: str  # "approved" or "edit_requested"
     feedback: str | None = None
+    content_override: str | None = None
 
 
 class AgentStatusResponse(BaseModel):

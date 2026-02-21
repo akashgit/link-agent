@@ -8,17 +8,36 @@ LINKEDIN_HOOK_CUTOFF = 140
 RECOMMENDED_MIN = 1300
 RECOMMENDED_MAX = 2000
 
-# Markdown patterns to strip
+# Markdown patterns to strip — ordered by precedence
+_CODE_FENCE_RE = re.compile(r"```[\s\S]*?```")
+_INLINE_CODE_RE = re.compile(r"`([^`]+)`")
+_BOLD_ITALIC_RE = re.compile(r"\*\*\*(.+?)\*\*\*")
 _BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
+_BOLD_UNDER_RE = re.compile(r"__(.+?)__")
 _ITALIC_STAR_RE = re.compile(r"\*(.+?)\*")
 _ITALIC_UNDER_RE = re.compile(r"(?<!\w)_(.+?)_(?!\w)")
+_STRIKETHROUGH_RE = re.compile(r"~~(.+?)~~")
 _HEADER_RE = re.compile(r"^#{1,6}\s+", re.MULTILINE)
 _LIST_RE = re.compile(r"^[-*]\s+", re.MULTILINE)
+_NUMBERED_LIST_RE = re.compile(r"^\d+\.\s+", re.MULTILINE)
 _LINK_RE = re.compile(r"\[([^\]]+)\]\([^)]+\)")
-_INLINE_CODE_RE = re.compile(r"`([^`]+)`")
+
+# Orphaned markers at word boundaries
+_ORPHAN_STARS_RE = re.compile(r"(?<!\S)\*{1,3}(?=\S)|(?<=\S)\*{1,3}(?!\S)")
+_ORPHAN_BACKTICKS_RE = re.compile(r"(?<!\S)`(?=\S)|(?<=\S)`(?!\S)")
 
 _MARKDOWN_DETECT_RE = re.compile(
-    r"\*\*.+?\*\*|(?<!\w)_.+?_(?!\w)|^#{1,6}\s+|^[-*]\s+|\[.+?\]\(.+?\)|`.+?`",
+    r"\*\*\*(.+?)\*\*\*"
+    r"|\*\*(.+?)\*\*"
+    r"|__(.+?)__"
+    r"|(?<!\w)_(.+?)_(?!\w)"
+    r"|~~(.+?)~~"
+    r"|^#{1,6}\s+"
+    r"|^[-*]\s+"
+    r"|^\d+\.\s+"
+    r"|\[.+?\]\(.+?\)"
+    r"|`.+?`"
+    r"|```[\s\S]*?```",
     re.MULTILINE,
 )
 
@@ -29,15 +48,47 @@ def count_linkedin_chars(text: str) -> int:
 
 
 def strip_markdown(text: str) -> str:
-    """Remove markdown formatting, converting to plain text suitable for LinkedIn."""
+    """Remove markdown formatting, converting to plain text suitable for LinkedIn.
+
+    Processes patterns in correct precedence order and loops up to 3 passes
+    to handle nested patterns.
+    """
     result = text
-    result = _BOLD_RE.sub(r"\1", result)
-    result = _ITALIC_STAR_RE.sub(r"\1", result)
-    result = _ITALIC_UNDER_RE.sub(r"\1", result)
-    result = _HEADER_RE.sub("", result)
-    result = _LIST_RE.sub("", result)
-    result = _LINK_RE.sub(r"\1", result)
-    result = _INLINE_CODE_RE.sub(r"\1", result)
+
+    for _ in range(3):
+        prev = result
+        # 1. Code fences (remove entirely — content inside is raw)
+        result = _CODE_FENCE_RE.sub("", result)
+        # 2. Inline code (keep inner text)
+        result = _INLINE_CODE_RE.sub(r"\1", result)
+        # 3. Bold-italic (3 stars)
+        result = _BOLD_ITALIC_RE.sub(r"\1", result)
+        # 4. Bold (2 stars)
+        result = _BOLD_RE.sub(r"\1", result)
+        # 5. Bold underscore
+        result = _BOLD_UNDER_RE.sub(r"\1", result)
+        # 6. Italic star
+        result = _ITALIC_STAR_RE.sub(r"\1", result)
+        # 7. Italic underscore
+        result = _ITALIC_UNDER_RE.sub(r"\1", result)
+        # 8. Strikethrough
+        result = _STRIKETHROUGH_RE.sub(r"\1", result)
+        # 9. Headers
+        result = _HEADER_RE.sub("", result)
+        # 10. Unordered lists
+        result = _LIST_RE.sub("", result)
+        # 11. Numbered lists
+        result = _NUMBERED_LIST_RE.sub("", result)
+        # 12. Links
+        result = _LINK_RE.sub(r"\1", result)
+
+        if result == prev:
+            break
+
+    # Final cleanup: remove orphaned * and ` at word boundaries
+    result = _ORPHAN_STARS_RE.sub("", result)
+    result = _ORPHAN_BACKTICKS_RE.sub("", result)
+
     return result
 
 

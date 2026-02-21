@@ -23,6 +23,7 @@ export interface Draft {
   cta: string | null;
   hashtags: string | null;
   feedback: string | null;
+  stage: string | null;
   created_at: string;
 }
 
@@ -84,6 +85,7 @@ export interface AgentRunResponse {
 export interface AgentResumeRequest {
   status: "approved" | "edit_requested";
   feedback?: string;
+  content_override?: string;
 }
 
 export interface SSEEvent {

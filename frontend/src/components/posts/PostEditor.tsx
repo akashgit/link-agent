@@ -5,7 +5,8 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
 
 const LINKEDIN_CHAR_LIMIT = 3000;
-const MARKDOWN_RE = /\*\*.+?\*\*|(?<!\w)_.+?_(?!\w)|^#{1,6}\s+/m;
+const MARKDOWN_RE =
+  /\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|__(.+?)__|(?<!\w)_(.+?)_(?!\w)|~~(.+?)~~|^#{1,6}\s+|^[-*]\s+|^\d+\.\s+|\[.+?\]\(.+?\)|`.+?`|```[\s\S]*?```/m;
 
 interface PostEditorProps {
   content: string;
