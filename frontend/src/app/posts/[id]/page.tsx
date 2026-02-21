@@ -46,12 +46,26 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
     .filter((e) => e.event === "node_complete")
     .map((e) => (e.data as Record<string, string>).node || (e.data as Record<string, string>).stage);
 
+  // Refetch post data when agent pauses (interrupt) or completes
   useEffect(() => {
-    if (isComplete) refetch();
-  }, [isComplete, refetch]);
+    if (isComplete || isInterrupted) refetch();
+  }, [isComplete, isInterrupted, refetch]);
 
-  const displayContent = selectedDraft?.content || post?.final_content || post?.drafts?.[0]?.content || "";
-  const displayHashtags = selectedDraft?.hashtags?.split(",").map((h) => h.trim()) || [];
+  // Get content from interrupt data (proofread_content), drafts, or final_content
+  const interruptContent = interruptData?.proofread_content as string | undefined;
+  const interruptHashtags = interruptData?.suggested_hashtags as string[] | undefined;
+
+  const displayContent =
+    selectedDraft?.content ||
+    interruptContent ||
+    post?.final_content ||
+    post?.drafts?.[0]?.content ||
+    "";
+
+  const displayHashtags =
+    interruptHashtags ||
+    selectedDraft?.hashtags?.split(",").map((h) => h.trim()) ||
+    [];
 
   const handleApprove = async () => {
     if (!post?.thread_id) return;

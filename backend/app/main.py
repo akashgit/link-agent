@@ -5,11 +5,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.api.router import api_router
-from app.agent.checkpointer import close_checkpointer
+from app.agent.checkpointer import init_checkpointer, close_checkpointer
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await init_checkpointer()
     yield
     await close_checkpointer()
 

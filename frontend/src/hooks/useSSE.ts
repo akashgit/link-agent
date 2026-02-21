@@ -29,6 +29,7 @@ export function useSSE({ threadId, isResume }: UseSSEOptions): UseSSEReturn {
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sourceRef = useRef<EventSource | null>(null);
+  const doneRef = useRef(false);
 
   const cleanup = useCallback(() => {
     if (sourceRef.current) {
@@ -41,6 +42,7 @@ export function useSSE({ threadId, isResume }: UseSSEOptions): UseSSEReturn {
     if (!threadId) return;
 
     cleanup();
+    doneRef.current = false;
 
     const path = isResume
       ? `${API_URL}/agent/resume/${threadId}`
@@ -49,9 +51,16 @@ export function useSSE({ threadId, isResume }: UseSSEOptions): UseSSEReturn {
     const source = new EventSource(path);
     sourceRef.current = source;
 
-    source.onopen = () => setIsConnected(true);
+    source.onopen = () => {
+      setIsConnected(true);
+      setError(null);
+    };
+
     source.onerror = () => {
-      setError("Connection lost");
+      // Only show error if the stream hasn't finished normally
+      if (!doneRef.current) {
+        setError("Connection lost");
+      }
       setIsConnected(false);
     };
 
@@ -67,12 +76,15 @@ export function useSSE({ threadId, isResume }: UseSSEOptions): UseSSEReturn {
       setEvents((prev) => [...prev, { event: "interrupt", data }]);
       setIsInterrupted(true);
       setInterruptData(data);
+      doneRef.current = true;
+      cleanup();
     });
 
     source.addEventListener("complete", (e) => {
       const data = JSON.parse(e.data);
       setEvents((prev) => [...prev, { event: "complete", data }]);
       setIsComplete(true);
+      doneRef.current = true;
       cleanup();
     });
 
@@ -80,6 +92,8 @@ export function useSSE({ threadId, isResume }: UseSSEOptions): UseSSEReturn {
       const data = JSON.parse(e.data);
       setEvents((prev) => [...prev, { event: "paused", data }]);
       setIsInterrupted(true);
+      doneRef.current = true;
+      cleanup();
     });
 
     source.addEventListener("error", (e) => {
@@ -87,6 +101,7 @@ export function useSSE({ threadId, isResume }: UseSSEOptions): UseSSEReturn {
         const data = JSON.parse(e.data);
         setError(data.error || "Unknown error");
       }
+      doneRef.current = true;
       cleanup();
     });
 

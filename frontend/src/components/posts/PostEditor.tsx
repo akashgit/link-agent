@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
 
@@ -12,6 +12,12 @@ interface PostEditorProps {
 
 export function PostEditor({ content, onSave, readOnly }: PostEditorProps) {
   const [editedContent, setEditedContent] = useState(content);
+
+  // Sync when content prop changes (e.g. after async load or refetch)
+  useEffect(() => {
+    setEditedContent(content);
+  }, [content]);
+
   const charCount = editedContent.length;
   const wordCount = editedContent.trim().split(/\s+/).filter(Boolean).length;
 
