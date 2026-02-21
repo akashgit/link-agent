@@ -159,6 +159,10 @@ async def stream_agent(thread_id: str, db: AsyncSession = Depends(get_db)):
             async for event in compiled.astream(initial_state, config, stream_mode="updates"):
                 for node_name, node_output in event.items():
                     if node_name == "__interrupt__":
+                        # Mark post as in_review so the editor unlocks
+                        post.status = PostStatus.IN_REVIEW
+                        await db.commit()
+
                         # Convert image_url from disk path to HTTP URL
                         interrupt_value = node_output[0].value if node_output else {}
                         if isinstance(interrupt_value, dict):
@@ -300,6 +304,13 @@ async def resume_agent(
         compiled = graph.compile(checkpointer=checkpointer)
         config = {"configurable": {"thread_id": thread_id}}
 
+        # Set status back to drafting while the pipeline runs
+        result = await db.execute(select(Post).where(Post.thread_id == thread_id))
+        resume_post = result.scalar_one_or_none()
+        if resume_post:
+            resume_post.status = PostStatus.DRAFTING
+            await db.commit()
+
         # Resume with user's decision
         command = Command(resume={"status": request.status, "feedback": request.feedback or ""})
 
@@ -311,6 +322,11 @@ async def resume_agent(
                 async for event in compiled.astream(command, config, stream_mode="updates"):
                     for node_name, node_output in event.items():
                         if node_name == "__interrupt__":
+                            # Mark post as in_review so the editor unlocks
+                            if post:
+                                post.status = PostStatus.IN_REVIEW
+                                await db.commit()
+
                             interrupt_value = node_output[0].value if node_output else {}
                             if isinstance(interrupt_value, dict):
                                 if interrupt_value.get("image_url"):

@@ -325,9 +325,9 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
         <PostEditor
           content={displayContent}
           onSave={handleSaveContent}
-          readOnly={post.status === "drafting" && !isInterrupted}
+          readOnly={post.status === "drafting"}
         />
-        {isInterrupted && userEditedContent !== null && (
+        {(isInterrupted || post.status === "in_review") && userEditedContent !== null && (
           <p className="text-xs text-blue-600">
             Your edits will be used as final content when approved.
           </p>
@@ -376,7 +376,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
           </Card>
         )}
 
-        {isInterrupted && (
+        {(isInterrupted || post.status === "in_review") && (
           <ApprovalPanel
             onApprove={handleApprove}
             onRequestEdit={handleRequestEdit}
@@ -423,8 +423,8 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
           </Card>
         )}
 
-        {/* Run / Revise agent button — for posts not currently streaming and not stale-drafting */}
-        {!sseEnabled && !isStaleDrafting && (
+        {/* Run / Revise agent button — for posts not currently streaming, not stale-drafting, and not awaiting review */}
+        {!sseEnabled && !isStaleDrafting && post.status !== "in_review" && (
           <Card>
             <h4 className="font-semibold text-sm mb-2">
               {post.thread_id ? "Revise Content" : "Generate Content"}
