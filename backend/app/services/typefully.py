@@ -27,7 +27,7 @@ async def get_linkedin_profile() -> dict:
         return {}
     async with httpx.AsyncClient() as client:
         resp = await client.get(
-            f"{BASE_URL}/v2/social-sets/{social_set_id}",
+            f"{BASE_URL}/v2/social-sets/{social_set_id}/",
             headers=_headers(),
         )
         resp.raise_for_status()
