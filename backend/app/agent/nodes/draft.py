@@ -34,6 +34,9 @@ async def draft_node(state: AgentState) -> dict:
         revision_context=revision_context,
     )
 
+    if state.get("uploaded_file_text"):
+        prompt += f"\n\nSource material from uploaded file:\n{state['uploaded_file_text'][:5000]}"
+
     result = await llm_completion(prompt)
 
     # Extract hook (first 2 lines) and CTA (last line with ?)

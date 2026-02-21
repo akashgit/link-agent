@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, useMemo, use } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -10,16 +10,18 @@ import { PostEditor } from "@/components/posts/PostEditor";
 import { PostPreview } from "@/components/posts/PostPreview";
 import { PostVersionHistory } from "@/components/posts/PostVersionHistory";
 import { PostStatusBadge } from "@/components/posts/PostStatusBadge";
+import { PostMedia } from "@/components/posts/PostMedia";
 import { AgentWorkflow } from "@/components/agent/AgentWorkflow";
 import { AgentStreamLog } from "@/components/agent/AgentStreamLog";
 import { ApprovalPanel } from "@/components/agent/ApprovalPanel";
 import { usePost } from "@/hooks/usePosts";
 import { useUpdatePost } from "@/hooks/usePosts";
 import { useSSE } from "@/hooks/useSSE";
-import { resumeAgent } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
+import { resumeAgent, fetchPostMedia, deletePost } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { PILLAR_COLORS } from "@/lib/constants";
-import type { Draft } from "@/lib/types";
+import type { Draft, MediaAsset } from "@/lib/types";
 
 export default function PostDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -30,6 +32,11 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
 
   const [selectedDraft, setSelectedDraft] = useState<Draft | null>(null);
   const [resuming, setResuming] = useState(false);
+
+  const { data: mediaAssets = [] } = useQuery({
+    queryKey: ["post-media", id],
+    queryFn: () => fetchPostMedia(id),
+  });
 
   const {
     events,
@@ -46,6 +53,20 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
     .filter((e) => e.event === "node_complete")
     .map((e) => (e.data as Record<string, string>).node || (e.data as Record<string, string>).stage);
 
+  // Extract image URL from node_complete events for generate_image
+  const generatedImageUrl = useMemo(() => {
+    const imageEvent = events.find(
+      (e) =>
+        e.event === "node_complete" &&
+        (e.data as Record<string, string>).node === "generate_image" &&
+        (e.data as Record<string, string>).image_url,
+    );
+    if (imageEvent) {
+      return (imageEvent.data as Record<string, string>).image_url;
+    }
+    return undefined;
+  }, [events]);
+
   // Refetch post data when agent pauses (interrupt) or completes
   useEffect(() => {
     if (isComplete || isInterrupted) refetch();
@@ -54,6 +75,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
   // Get content from interrupt data (proofread_content), drafts, or final_content
   const interruptContent = interruptData?.proofread_content as string | undefined;
   const interruptHashtags = interruptData?.suggested_hashtags as string[] | undefined;
+  const interruptImageUrl = interruptData?.image_url as string | undefined;
 
   const displayContent =
     selectedDraft?.content ||
@@ -66,6 +88,17 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
     interruptHashtags ||
     selectedDraft?.hashtags?.split(",").map((h) => h.trim()) ||
     [];
+
+  // Use interrupt image URL, SSE event URL, or fall back to first image in media list
+  const mediaImageUrl = useMemo(() => {
+    const imageAsset = mediaAssets.find((a) => a.content_type.startsWith("image/"));
+    if (imageAsset) {
+      return `/api/uploads/file/${imageAsset.file_path.split("/").pop()}`;
+    }
+    return undefined;
+  }, [mediaAssets]);
+
+  const displayImageUrl = interruptImageUrl || generatedImageUrl || mediaImageUrl;
 
   const handleApprove = async () => {
     if (!post?.thread_id) return;
@@ -101,6 +134,19 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
     toast("Content saved", "success");
   };
 
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const handleDelete = async () => {
+    if (!post) return;
+    try {
+      await deletePost(post.id);
+      toast("Post deleted", "success");
+      router.push("/posts");
+    } catch {
+      toast("Failed to delete post", "error");
+    }
+  };
+
   if (isLoading) {
     return <div className="flex justify-center py-20"><Spinner size="lg" /></div>;
   }
@@ -116,6 +162,19 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
         <div className="flex items-center gap-3">
           <h2 className="text-lg font-semibold truncate">{post.title}</h2>
           <PostStatusBadge status={post.status} />
+          <div className="ml-auto">
+            {confirmDelete ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-red-600">Delete this post?</span>
+                <Button size="sm" variant="danger" onClick={handleDelete}>Yes</Button>
+                <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(false)}>No</Button>
+              </div>
+            ) : (
+              <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(true)}>
+                Delete
+              </Button>
+            )}
+          </div>
         </div>
         <div className="flex gap-2">
           <Badge className={PILLAR_COLORS[post.content_pillar]}>{post.content_pillar.replace("_", " ")}</Badge>
@@ -139,14 +198,15 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
         )}
       </div>
 
-      {/* Middle column: Preview */}
-      <div className="col-span-4">
+      {/* Middle column: Preview + Media */}
+      <div className="col-span-4 space-y-4">
         <h3 className="text-sm font-medium text-gray-500 mb-3">LinkedIn Preview</h3>
         <PostPreview
           content={displayContent}
           hashtags={displayHashtags}
-          imageUrl={interruptData?.image_url as string}
+          imageUrl={displayImageUrl}
         />
+        <PostMedia postId={id} />
       </div>
 
       {/* Right column: Workflow */}

@@ -5,6 +5,16 @@ from app.services.image_gen import generate_image
 
 
 async def generate_image_node(state: AgentState) -> dict:
+    # If uploaded images exist, use the first one instead of generating
+    uploaded_images = state.get("uploaded_images", [])
+    if uploaded_images:
+        return {
+            "image_prompt": "",
+            "image_url": uploaded_images[0],
+            "image_generation_status": "uploaded",
+            "current_stage": "generate_image",
+        }
+
     # Generate image prompt from post content
     prompt = IMAGE_PROMPT_TEMPLATE.format(
         post_content=state.get("draft_content", ""),

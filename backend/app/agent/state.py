@@ -7,6 +7,7 @@ class AgentState(TypedDict, total=False):
     content_pillar: str
     post_format: str
     uploaded_file_text: str
+    uploaded_images: list[str]
     post_id: str
 
     # Research

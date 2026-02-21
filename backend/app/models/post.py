@@ -54,6 +54,7 @@ class Post(Base):
     final_content: Mapped[str | None] = mapped_column(Text, nullable=True)
     thread_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     user_input: Mapped[str | None] = mapped_column(Text, nullable=True)
+    uploaded_file_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     revision_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

@@ -12,6 +12,9 @@ async def optimize_node(state: AgentState) -> dict:
         content_pillar=state.get("content_pillar", ""),
     )
 
+    if state.get("uploaded_file_text"):
+        prompt += f"\n\nOriginal source material (verify facts against this):\n{state['uploaded_file_text'][:3000]}"
+
     result = await llm_completion(prompt)
 
     # Parse sections

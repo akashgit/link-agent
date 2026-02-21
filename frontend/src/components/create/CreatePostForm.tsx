@@ -40,7 +40,8 @@ export function CreatePostForm() {
     try {
       let uploadedText: string | undefined;
       if (file) {
-        await uploadFile(file);
+        const uploadResult = await uploadFile(file);
+        uploadedText = uploadResult.extracted_text ?? undefined;
       }
 
       const post = await createPost.mutateAsync({

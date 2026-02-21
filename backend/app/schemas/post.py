@@ -9,6 +9,7 @@ class PostCreate(BaseModel):
     content_pillar: str
     post_format: str
     user_input: str | None = None
+    uploaded_file_text: str | None = None
 
 
 class PostUpdate(BaseModel):
@@ -40,6 +41,7 @@ class PostResponse(BaseModel):
     final_content: str | None
     thread_id: str | None
     user_input: str | None
+    uploaded_file_text: str | None
     revision_count: int
     created_at: datetime
     updated_at: datetime

@@ -7,6 +7,7 @@ export interface Post {
   final_content: string | null;
   thread_id: string | null;
   user_input: string | null;
+  uploaded_file_text: string | null;
   revision_count: number;
   created_at: string;
   updated_at: string;
@@ -48,8 +49,15 @@ export interface MediaAsset {
   file_path: string;
   content_type: string;
   file_size: number;
+  source: string | null;
   prompt_used: string | null;
   created_at: string;
+}
+
+export interface FileUploadResponse {
+  asset: MediaAsset;
+  extracted_text: string | null;
+  extracted_images: MediaAsset[];
 }
 
 export interface Setting {

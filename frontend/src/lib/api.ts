@@ -1,4 +1,5 @@
 import axios from "axios";
+import type { FileUploadResponse, MediaAsset } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
@@ -6,6 +7,18 @@ export const api = axios.create({
   baseURL: API_URL,
   headers: { "Content-Type": "application/json" },
 });
+
+/**
+ * Convert a relative API path (e.g. /api/uploads/file/xxx.png) to a full URL.
+ */
+export function getFileUrl(path: string): string {
+  if (!path) return "";
+  // If it's already an absolute URL, return as-is
+  if (path.startsWith("http://") || path.startsWith("https://")) return path;
+  // Strip /api prefix if present since API_URL already includes it
+  const baseUrl = API_URL.replace(/\/api$/, "");
+  return `${baseUrl}${path}`;
+}
 
 // Posts
 export const fetchPosts = (params?: Record<string, string>) =>
@@ -64,13 +77,28 @@ export const deleteCalendarEntry = (id: string) =>
   api.delete(`/calendar/${id}`);
 
 // Uploads
-export const uploadFile = (file: File) => {
+export const uploadFile = (file: File): Promise<FileUploadResponse> => {
   const formData = new FormData();
   formData.append("file", file);
   return api.post("/uploads", formData, {
     headers: { "Content-Type": "multipart/form-data" },
   }).then((r) => r.data);
 };
+
+// Media (per-post)
+export const fetchPostMedia = (postId: string): Promise<MediaAsset[]> =>
+  api.get(`/posts/${postId}/media`).then((r) => r.data);
+
+export const uploadPostMedia = (postId: string, file: File): Promise<MediaAsset> => {
+  const formData = new FormData();
+  formData.append("file", file);
+  return api.post(`/posts/${postId}/media`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  }).then((r) => r.data);
+};
+
+export const deletePostMedia = (postId: string, assetId: string): Promise<void> =>
+  api.delete(`/posts/${postId}/media/${assetId}`).then(() => undefined);
 
 // Settings
 export const fetchSettings = () =>

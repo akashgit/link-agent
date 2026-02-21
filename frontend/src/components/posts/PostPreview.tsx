@@ -1,5 +1,7 @@
 "use client";
 
+import { getFileUrl } from "@/lib/api";
+
 interface PostPreviewProps {
   content: string;
   hashtags?: string[];
@@ -7,6 +9,8 @@ interface PostPreviewProps {
 }
 
 export function PostPreview({ content, hashtags, imageUrl }: PostPreviewProps) {
+  const resolvedImageUrl = imageUrl ? getFileUrl(imageUrl) : null;
+
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm max-w-[520px]">
       {/* LinkedIn header mockup */}
@@ -30,11 +34,20 @@ export function PostPreview({ content, hashtags, imageUrl }: PostPreviewProps) {
       </div>
 
       {/* Image */}
-      {imageUrl && (
+      {resolvedImageUrl && (
         <div className="border-t border-gray-100">
-          <div className="aspect-video bg-gray-100 flex items-center justify-center text-gray-400 text-sm">
-            Generated image preview
-          </div>
+          <img
+            src={resolvedImageUrl}
+            alt="Generated post image"
+            className="w-full aspect-video object-cover"
+            onError={(e) => {
+              // Fall back to placeholder on error
+              const target = e.target as HTMLImageElement;
+              target.style.display = "none";
+              target.parentElement!.innerHTML =
+                '<div class="aspect-video bg-gray-100 flex items-center justify-center text-gray-400 text-sm">Image failed to load</div>';
+            }}
+          />
         </div>
       )}
 

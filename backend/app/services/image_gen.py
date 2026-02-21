@@ -20,10 +20,10 @@ async def generate_image(prompt: str, save_dir: str | None = None) -> dict:
 
         client = genai.Client(api_key=settings.gemini_api_key)
         response = client.models.generate_content(
-            model="gemini-2.0-flash-exp",
+            model="gemini-2.5-flash-image",
             contents=prompt,
             config=genai.types.GenerateContentConfig(
-                response_modalities=["image", "text"],
+                response_modalities=["IMAGE", "TEXT"],
             ),
         )
 
